@@ -78,22 +78,42 @@ import time
 def play():
     """Main loop for music playback."""
     while True:
+        # Condition 1: A song has just finished playing
         if musicplaylist.playobj and not musicplaylist.playobj.is_playing() and not musicplaylist.songpaused:
-            # Song has finished
             musicplaylist.stop_playback_progress()
+
+            # Case 1.1: Repeat current song
             if musicplaylist.repeat == 2:
                 musicplaylist.shiftlastplayedsong()
                 startmusic()
+            # Case 1.2: Songs are in the queue
             elif musicplaylist.queuedplaylist:
                 startmusic()
+            # Case 1.3: Loop the entire playlist
             elif musicplaylist.repeat == 1:
                 musicplaylist.loopqueue()
-                startmusic()
+                if musicplaylist.queuedplaylist:
+                    startmusic()
+            # Case 1.4: Nothing to play, wait for a new song
             else:
                 songavailable.clear()
                 songavailable.wait()
 
-        musicplaylist.update_playback_progress()
+        # Condition 2: No song is currently playing or paused, but there are songs in the queue
+        elif not musicplaylist.playobj and not musicplaylist.songpaused and musicplaylist.queuedplaylist:
+            startmusic()
+
+        # Condition 3: A song is playing, update the progress bar
+        elif musicplaylist.playobj and musicplaylist.playobj.is_playing() and not musicplaylist.songpaused:
+            musicplaylist.update_playback_progress()
+
+        # Condition 4: The player is paused or idle
+        else:
+            # If nothing is happening, wait for a new song if the queue is empty
+            if not musicplaylist.queuedplaylist and not musicplaylist.playobj:
+                songavailable.clear()
+                songavailable.wait()
+
         time.sleep(0.5)
 
 def queue():
