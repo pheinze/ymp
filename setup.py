@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="ymp",
-    version="0.6.0",
+    version="0.5.1",
     author="pheinze",
     author_email="pheinze82@gmail.com",
     description="A command-line music player for YouTube.",

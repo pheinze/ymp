@@ -1,3 +1,6 @@
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module='pkg_resources')
+
 import ymp.downloader as downloader
 from ymp.playlistmanager import Playlist
 from ymp.player import wait
