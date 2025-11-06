@@ -73,32 +73,28 @@ def startmusic():
     else:
         print(colored(f"Could not download '{song}'. Skipping.", 'red'))
 
+import time
+
 def play():
     """Main loop for music playback."""
     while True:
-        try:
-            if musicplaylist.playobj and musicplaylist.playobj.is_playing():
-                musicplaylist.playobj.wait_done()
-        except:
-            pass
-
-        if  musicplaylist.songpaused==True:
-            wait()
-
-        elif musicplaylist.repeat==2:
-            musicplaylist.shiftlastplayedsong()
-            startmusic()
-
-        elif musicplaylist.queuedplaylist :
-            startmusic()
-
-        else:
-            if musicplaylist.repeat==1:
+        if musicplaylist.playobj and not musicplaylist.playobj.is_playing() and not musicplaylist.songpaused:
+            # Song has finished
+            musicplaylist.stop_playback_progress()
+            if musicplaylist.repeat == 2:
+                musicplaylist.shiftlastplayedsong()
+                startmusic()
+            elif musicplaylist.queuedplaylist:
+                startmusic()
+            elif musicplaylist.repeat == 1:
                 musicplaylist.loopqueue()
-
+                startmusic()
             else:
                 songavailable.clear()
                 songavailable.wait()
+
+        musicplaylist.update_playback_progress()
+        time.sleep(0.5)
 
 def queue():
     """Handles user input for controlling the music player."""
