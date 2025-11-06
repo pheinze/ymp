@@ -89,17 +89,23 @@ def download(link,dir_path):
         'default_search': 'ytsearch',
     }
     print("Downloading",link)
+    filepath = None
     with YoutubeDL(options) as ytdl:
         try:
             meta = ytdl.extract_info(link, download=True)
             if 'entries' in meta:
                 meta = meta['entries'][0]
+
+            filepath = ytdl.prepare_filename(meta)
+            # a little hacky, but after postprocessing, the extension is changed to mp3
+            filepath = os.path.splitext(filepath)[0] + '.mp3'
+
         except Exception as e:
             print(f"Error during download: {e}")
-            return None
+            return None, None
 
     print("Done Downloading")
-    return meta
+    return meta, filepath
 
 def makedownload(permanent=False):
     """Creates a temporary or permanent directory for downloading songs."""

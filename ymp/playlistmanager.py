@@ -20,6 +20,7 @@ class Playlist:
         self.starttime = None
         self.pausetime = None
         self.meta = None
+        self.filepath = None
         self.playobj = None 
         self.resumetime = None
         self.songpaused = False
@@ -37,7 +38,8 @@ class Playlist:
 
     def downloadsong(self,song,dir_path):
         """Downloads a song."""
-        meta=downloader.download(song,dir_path)
+        meta, filepath = downloader.download(song,dir_path)
+        self.filepath = filepath
         return meta
     
     def shuffleplaylist(self):
@@ -54,13 +56,13 @@ class Playlist:
         table.add_row("[bold yellow]Currently Playing:[/bold yellow]", meta['title'])
         console.print(table)
 
-        self.playobj,self.starttime=player.genmusic(os.path.join(dir_path, f"{meta['title']}.mp3"),0)
+        self.playobj,self.starttime=player.genmusic(self.filepath,0)
 
     def resumesong(self,dir_path):
         """Resumes a paused song."""
         if self.songpaused==True:
             console.print(f"Resuming: {self.meta['title']}", style="yellow")
-            self.playobj,self.starttime=player.genmusic(os.path.join(dir_path, f"{self.meta['title']}.mp3"),self.resumetime)
+            self.playobj,self.starttime=player.genmusic(self.filepath,self.resumetime)
             self.songpaused=False
         else:
             console.print("Already Playing", style="bold red")
