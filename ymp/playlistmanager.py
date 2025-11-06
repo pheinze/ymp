@@ -1,13 +1,20 @@
-import jakym.downloader as downloader
-import jakym.player as player
+import ymp.downloader as downloader
+import ymp.player as player
+import os
 
 
 import random 
 from termcolor import colored
+from rich.console import Console
+from rich.table import Table
+
+console = Console()
 
 class Playlist:
+    """Manages the playlist, including queuing, playback, and song history."""
 
     def __init__(self):
+        """Initializes the Playlist object."""
         self.queuedplaylist=[]
         self.playedplaylist=[]
         self.starttime = None
@@ -19,44 +26,56 @@ class Playlist:
         self.repeat = 0
 
     def returnsong(self):
+        """Returns the next song from the queue and adds it to the played list."""
         song=self.queuedplaylist.pop(0)
         self.playedplaylist.append(song)
         return song
 
     def addsong(self,query):
+        """Adds a song to the queue."""
         self.queuedplaylist.append(query+" song")
 
-    def downloadsong(self,song,dir):
-        meta=downloader.download(song,dir)
+    def downloadsong(self,song,dir_path):
+        """Downloads a song."""
+        meta=downloader.download(song,dir_path)
         return meta
     
     def shuffleplaylist(self):
+            """Shuffles the queued playlist."""
             random.shuffle(self.queuedplaylist)
-            print("Queue Shuffled")
+            console.print("Queue Shuffled", style="bold green")
 
-    def playsong(self,meta,dir):
+    def playsong(self,meta,dir_path):
+        """Plays a song."""
         self.meta=meta
         self.resumetime=0
-        print(colored("Currently Playing : " + self.meta['title'],'yellow'))
-        self.playobj,self.starttime=player.genmusic(dir.name+'/'+self.meta['id'],0)
 
-    def resumesong(self,dir):
+        table = Table(show_header=False, box=None)
+        table.add_row("[bold yellow]Currently Playing:[/bold yellow]", meta['title'])
+        console.print(table)
+
+        self.playobj,self.starttime=player.genmusic(os.path.join(dir_path, f"{meta['title']}.mp3"),0)
+
+    def resumesong(self,dir_path):
+        """Resumes a paused song."""
         if self.songpaused==True:
-            print(colored("Resuming : " + self.meta['title'],'yellow'))
-            self.playobj,self.starttime=player.genmusic(dir.name+'/'+self.meta['id'],self.resumetime)
+            console.print(f"Resuming: {self.meta['title']}", style="yellow")
+            self.playobj,self.starttime=player.genmusic(os.path.join(dir_path, f"{self.meta['title']}.mp3"),self.resumetime)
             self.songpaused=False
         else:
-            print("Already Playing")
+            console.print("Already Playing", style="bold red")
     
     def pausesong(self):
+        """Pauses the current song."""
         if self.songpaused==True:
-            print("Already Paused")
+            console.print("Already Paused", style="bold red")
         else:
             self.songpaused=True
             self.pausetime=player.pausemusic(self.playobj)
             self.resumetime = self.resumetime+((self.pausetime - self.starttime)*1000)
 
     def nextsong(self):
+        """Skips to the next song."""
         if self.repeat==2:
             self.repeat=0
             self.playobj.stop()
@@ -68,19 +87,23 @@ class Playlist:
             self.songpaused=False
 
     def shiftlastplayedsong(self):
+        """Moves the last played song to the front of the queue."""
         self.queuedplaylist=[self.playedplaylist.pop()]+self.queuedplaylist
 
     def loopqueue(self):
+        """Loops the queue by adding the played songs back to the queue."""
         self.queuedplaylist.extend(self.playedplaylist)
         self.playedplaylist.clear()
     
     def removelastqueuedsong(self):
+        """Removes the last song from the queue."""
         try:
             self.queuedplaylist.pop()
         except:
             print("Empty queue")
 
     def previoussong(self):
+        """Goes back to the previous song."""
         try:
             self.queuedplaylist=[self.playedplaylist.pop()]+self.queuedplaylist
             self.queuedplaylist=[self.playedplaylist.pop()]+self.queuedplaylist
@@ -90,6 +113,7 @@ class Playlist:
             print(colored("Error: can't go back beyond start ",'red'))
 
     def repeatsong(self,mode):
+        """Sets the repeat mode."""
         if mode == "off":
             self.repeat = 0
         elif mode == "all":
@@ -99,13 +123,15 @@ class Playlist:
         else:
             print(colored("Error: Invalid Mode ",'red'))
     
-    def seeksong(self,value,dir):
+    def seeksong(self,value,dir_path):
+        """Seeks forward or backward in the current song."""
         if self.songpaused==False:
             self.pausesong()
         self.resumetime=self.resumetime + (value*1000)
-        self.resumesong(dir)
+        self.resumesong(dir_path)
 
     def returnplaylist(self):
+        """Returns the entire playlist (played and queued songs)."""
         allplaylist=self.playedplaylist+self.queuedplaylist
         return allplaylist
 

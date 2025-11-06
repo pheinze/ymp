@@ -1,0 +1,119 @@
+from yt_dlp import YoutubeDL
+from requests import get
+from bs4 import BeautifulSoup
+import re , json ,tempfile, os
+import ymp.config as config
+
+def spotifyparser(url):
+    """
+    Parses a Spotify playlist URL to extract track information.
+
+    Note: This method is fragile as it relies on scraping the Spotify website,
+    which can change at any time. A more robust solution would use the Spotify API.
+    """
+    print("Pinging "+url)
+    spotifyhtml=get(url)
+    soup=BeautifulSoup(spotifyhtml.content,"lxml")
+    tags=soup('script')
+    x=re.findall("Spotify.Entity = (.*);",tags[5].contents[0])
+    data=x[0]
+    jsonfile=json.loads(data)
+
+    print("Adding "+jsonfile['name']+" To Queue." )
+    tracks=jsonfile['tracks']['items']
+
+    tracklist=[]
+
+    for track in tracks:
+        trackname=track['track']['name']
+        artistname=""
+        for artist in track['track']['artists']:
+            artistname=artistname+" "+artist['name']
+        tracklist.append(trackname+artistname)
+
+    return tracklist
+
+class MyLogger(object):
+    """Custom logger for yt-dlp to provide feedback on download progress."""
+    def debug(self, msg):
+        if msg.startswith("[download] Downloading video"):
+            numlist=re.findall('[0-9]+', msg)
+            print("Processing Song: "+numlist[0]+"/"+numlist[1])
+    def warning(self, msg):
+        pass
+
+    def error(self, msg):
+        pass
+
+def ytplaylistparser(url,beg):
+    """Parses a YouTube playlist URL to extract video URLs."""
+    options={
+    'logger': MyLogger(),
+    'playlist_items':f'{beg}-{beg+4}'
+    }
+    print("Pinging Youtube")
+    meta = None
+    with YoutubeDL(options) as ytdl:
+        try:
+            meta = ytdl.extract_info(url, download=False)
+        except Exception as e:
+            print(f"Error fetching playlist info.")
+
+    tracklist=[]
+    if not meta or 'entries' not in meta:
+        return tracklist, -1
+
+    tracker=0
+    for song in meta.get('entries', []):
+        if song and 'webpage_url' in song:
+            tracklist.append(song['webpage_url'])
+            tracker=tracker+1
+
+    if tracker<5:
+        beg=-1
+    else:
+        beg=beg+tracker
+    return tracklist,beg
+
+def download(link,dir_path):
+    """Downloads a song from YouTube using yt-dlp."""
+    options={
+        'format': 'bestaudio/best',
+        'outtmpl': os.path.join(dir_path, '%(title)s.%(ext)s'),
+        'quiet': True,
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }],
+        'default_search': 'ytsearch',
+    }
+    print("Downloading",link)
+    with YoutubeDL(options) as ytdl:
+        try:
+            meta = ytdl.extract_info(link, download=True)
+            if 'entries' in meta:
+                meta = meta['entries'][0]
+        except Exception as e:
+            print(f"Error during download: {e}")
+            return None
+
+    print("Done Downloading")
+    return meta
+
+def makedownload(permanent=False):
+    """Creates a temporary or permanent directory for downloading songs."""
+    if permanent:
+        download_folder = config.get_download_folder()
+        os.makedirs(download_folder, exist_ok=True)
+        return download_folder
+    else:
+        return tempfile.TemporaryDirectory()
+
+def removedownload(dir):
+    """Removes the temporary download directory if it is one."""
+    if isinstance(dir, tempfile.TemporaryDirectory):
+        try:
+            dir.cleanup()
+        except:
+            pass
