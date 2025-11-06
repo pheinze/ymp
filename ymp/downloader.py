@@ -3,6 +3,7 @@ from requests import get
 from bs4 import BeautifulSoup
 import re , json ,tempfile, os
 import ymp.config as config
+from rich.progress import Progress
 
 def spotifyparser(url):
     """
@@ -33,22 +34,9 @@ def spotifyparser(url):
 
     return tracklist
 
-class MyLogger(object):
-    """Custom logger for yt-dlp to provide feedback on download progress."""
-    def debug(self, msg):
-        if msg.startswith("[download] Downloading video"):
-            numlist=re.findall('[0-9]+', msg)
-            print("Processing Song: "+numlist[0]+"/"+numlist[1])
-    def warning(self, msg):
-        pass
-
-    def error(self, msg):
-        pass
-
 def ytplaylistparser(url,beg):
     """Parses a YouTube playlist URL to extract video URLs."""
     options={
-    'logger': MyLogger(),
     'playlist_items':f'{beg}-{beg+4}'
     }
     print("Pinging Youtube")
@@ -77,35 +65,55 @@ def ytplaylistparser(url,beg):
 
 def download(link,dir_path):
     """Downloads a song from YouTube using yt-dlp."""
-    options={
-        'format': 'bestaudio/best',
-        'outtmpl': os.path.join(dir_path, '%(title)s.%(ext)s'),
-        'quiet': True,
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }],
-        'default_search': 'ytsearch',
-    }
-    print("Downloading",link)
-    filepath = None
-    with YoutubeDL(options) as ytdl:
-        try:
-            meta = ytdl.extract_info(link, download=True)
-            if 'entries' in meta:
-                meta = meta['entries'][0]
+    with Progress() as progress:
+        task = progress.add_task("[cyan]Downloading...", total=100)
 
-            filepath = ytdl.prepare_filename(meta)
-            # a little hacky, but after postprocessing, the extension is changed to mp3
-            filepath = os.path.splitext(filepath)[0] + '.mp3'
+        def progress_hook(d):
+            if d['status'] == 'downloading':
+                total_bytes = d.get('total_bytes') or d.get('total_bytes_estimate')
+                downloaded_bytes = d.get('downloaded_bytes')
+                speed = d.get('speed')
+                if total_bytes and downloaded_bytes is not None:
+                    percentage = (downloaded_bytes / total_bytes) * 100
+                    progress.update(task, completed=percentage, description=f"[cyan]Downloading... {speed_text(speed)}")
 
-        except Exception as e:
-            print(f"Error during download: {e}")
-            return None, None
+            if d['status'] == 'finished':
+                progress.update(task, completed=100, description="[green]Processing...")
 
-    print("Done Downloading")
+        options={
+            'format': 'bestaudio/best',
+            'outtmpl': os.path.join(dir_path, '%(title)s.%(ext)s'),
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
+            'default_search': 'ytsearch',
+            'progress_hooks': [progress_hook],
+            'quiet': True,
+            'noprogress': True,
+        }
+
+        filepath = None
+        with YoutubeDL(options) as ytdl:
+            try:
+                meta = ytdl.extract_info(link, download=True)
+                if 'entries' in meta:
+                    meta = meta['entries'][0]
+
+                filepath = ytdl.prepare_filename(meta)
+                filepath = os.path.splitext(filepath)[0] + '.mp3'
+
+            except Exception as e:
+                progress.update(task, description=f"[red]Error: {e}")
+                return None, None
+
     return meta, filepath
+
+def speed_text(speed):
+    if speed is None:
+        return ""
+    return f"{speed / 1024:.1f} KiB/s"
 
 def makedownload(permanent=False):
     """Creates a temporary or permanent directory for downloading songs."""
