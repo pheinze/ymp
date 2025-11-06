@@ -100,7 +100,7 @@ def download(link,dir_path):
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
-                'preferredquality': '192',
+                'preferredquality': '320',
             }, {
                 'key': 'EmbedThumbnail',
             }],
@@ -110,6 +110,7 @@ def download(link,dir_path):
             'progress_hooks': [progress_hook],
             'quiet': True,
             'noprogress': True,
+            'no_warnings': True,
         }
 
         filepath = None
