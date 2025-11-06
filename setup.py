@@ -17,6 +17,18 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
+    install_requires=[
+        'yt_dlp',
+        'pyfiglet',
+        'requests',
+        'pydub',
+        'termcolor',
+        'beautifulsoup4',
+        'colorama',
+        'lxml',
+        'simpleaudio',
+        'rich',
+    ],
     packages=setuptools.find_packages(),
     entry_points={
         'console_scripts': ['ymp = ymp.__main__:main']
