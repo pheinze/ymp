@@ -70,9 +70,10 @@ class Playlist:
 
     def update_playback_progress(self):
         """Updates the playback progress bar."""
-        if self.playobj and self.playobj.is_playing() and not self.songpaused:
-            elapsed = (time.time() - self.starttime) * 1000 + self.resumetime
-            self.playback_progress.update(self.playback_task, completed=elapsed / 1000)
+        if self.playobj and not self.songpaused:
+            if self.starttime:
+                elapsed = (time.time() - self.starttime) * 1000 + self.resumetime
+                self.playback_progress.update(self.playback_task, completed=elapsed / 1000)
 
     def stop_playback_progress(self):
         """Stops and removes the playback progress bar."""
