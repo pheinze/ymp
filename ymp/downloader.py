@@ -3,7 +3,7 @@ from requests import get
 from bs4 import BeautifulSoup
 import re , json ,tempfile, os
 import ymp.config as config
-from rich.progress import Progress
+from rich.progress import Progress, BarColumn, TextColumn, TransferSpeedColumn, TimeElapsedColumn
 
 def spotifyparser(url):
     """
@@ -65,29 +65,47 @@ def ytplaylistparser(url,beg):
 
 def download(link,dir_path):
     """Downloads a song from YouTube using yt-dlp."""
-    with Progress() as progress:
-        task = progress.add_task("[cyan]Downloading...", total=100)
+    progress = Progress(
+        TextColumn("[bold blue]{task.fields[filename]}", justify="right"),
+        BarColumn(bar_width=None),
+        "[progress.percentage]{task.percentage:>3.1f}%",
+        "•",
+        TransferSpeedColumn(),
+        "•",
+        TimeElapsedColumn(),
+    )
+
+    with progress:
+        task = progress.add_task("download", filename=link, total=100)
 
         def progress_hook(d):
             if d['status'] == 'downloading':
-                total_bytes = d.get('total_bytes') or d.get('total_bytes_estimate')
-                downloaded_bytes = d.get('downloaded_bytes')
-                speed = d.get('speed')
-                if total_bytes and downloaded_bytes is not None:
-                    percentage = (downloaded_bytes / total_bytes) * 100
-                    progress.update(task, completed=percentage, description=f"[cyan]Downloading... {speed_text(speed)}")
+                total_bytes = d.get('total_bytes') or d.get('total_bytes_estimate', 0)
+                downloaded_bytes = d.get('downloaded_bytes', 0)
+                speed = d.get('speed', 0)
+
+                progress.update(
+                    task,
+                    total=total_bytes,
+                    completed=downloaded_bytes,
+                    description=f"[cyan]Downloading at {speed_text(speed)}"
+                )
 
             if d['status'] == 'finished':
-                progress.update(task, completed=100, description="[green]Processing...")
+                progress.update(task, description="[green]Processing...", completed=d.get('total_bytes', 100))
 
         options={
             'format': 'bestaudio/best',
-            'outtmpl': os.path.join(dir_path, '%(title)s.%(ext)s'),
+            'outtmpl': os.path.join(dir_path, '%(artist)s - %(title)s.%(ext)s'),
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
                 'preferredquality': '192',
+            }, {
+                'key': 'EmbedThumbnail',
             }],
+            'writethumbnail': True,
+            'add_metadata': True,
             'default_search': 'ytsearch',
             'progress_hooks': [progress_hook],
             'quiet': True,
@@ -101,6 +119,7 @@ def download(link,dir_path):
                 if 'entries' in meta:
                     meta = meta['entries'][0]
 
+                progress.update(task, filename=meta.get('title', link))
                 filepath = ytdl.prepare_filename(meta)
                 filepath = os.path.splitext(filepath)[0] + '.mp3'
 
