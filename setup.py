@@ -32,6 +32,7 @@ setuptools.setup(
         'lxml',
         'simpleaudio',
         'rich',
+        'setuptools',
     ],
     packages=setuptools.find_packages(),
     entry_points={
