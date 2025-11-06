@@ -1,6 +1,15 @@
-__pycache__
-.vscode
-build
-dist
-jakym.egg-info
-devtest
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Log files
+*.log

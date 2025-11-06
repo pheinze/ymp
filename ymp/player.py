@@ -6,6 +6,7 @@ import simpleaudio
 
 
 def genmusic(name,resumetime):
+    """Generates a simpleaudio object for playback."""
     sound = AudioSegment.from_file(name)
     sound = sound[resumetime:]
     playback = simpleaudio.WaveObject(
@@ -19,10 +20,12 @@ def genmusic(name,resumetime):
     
 
 def pausemusic(playobj):
+    """Pauses the music playback."""
     t1 =time.time()
     playobj.stop()
     return t1
 
 
 def wait():
+    """Waits for a short period."""
     time.sleep(5)
