@@ -24,11 +24,15 @@ def playspotify(link):
     songavailable.set()
 
 def playyoutube(link):
-    """Parses a YouTube playlist and adds the songs to the queue."""
-    beg=1
-    while beg!=-1:
-        tempytplaylist,beg=downloader.ytplaylistparser(link,beg)
-        musicplaylist.queuedplaylist.extend(tempytplaylist)
+    """Parses a YouTube playlist or video and adds the songs to the queue."""
+    if "list=" in link:
+        beg=1
+        while beg!=-1:
+            tempytplaylist,beg=downloader.ytplaylistparser(link,beg)
+            musicplaylist.queuedplaylist.extend(tempytplaylist)
+            songavailable.set()
+    else:
+        musicplaylist.addsong(link)
         songavailable.set()
 
 def saveplaylist(name):
