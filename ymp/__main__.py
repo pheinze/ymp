@@ -1,9 +1,10 @@
-import jakym.downloader as downloader
-from jakym.playlistmanager import Playlist
-from jakym.player import wait
+import ymp.downloader as downloader
+from ymp.playlistmanager import Playlist
+from ymp.player import wait
+import ymp.config as config
 
 
-import threading, argparse, json, sys
+import threading, argparse, json, sys, os
 
 from pyfiglet import Figlet
 from colorama import init,deinit
@@ -12,55 +13,64 @@ from termcolor import colored
 musicplaylist = Playlist()
 songavailable = threading.Event()
 
-dir=downloader.makedownload()
+dir_obj=downloader.makedownload()
+dir_path = dir_obj.name if hasattr(dir_obj, 'name') else dir_obj
 
 
 def playspotify(link):
+    """Parses a Spotify playlist and adds the songs to the queue."""
     spotifyplaylist=downloader.spotifyparser(link)
     musicplaylist.queuedplaylist.extend(spotifyplaylist)
     songavailable.set()
 
 def playyoutube(link):
+    """Parses a YouTube playlist and adds the songs to the queue."""
     beg=1
     while beg!=-1:
         tempytplaylist,beg=downloader.ytplaylistparser(link,beg)
         musicplaylist.queuedplaylist.extend(tempytplaylist)
         songavailable.set()
 
-def saveplaylist(path,name):
-    with open(path+'jaylist.json', 'a+', encoding='utf-8') as f:
-        f.seek(0)
-        try:
-            playlistdata=json.load(f)
-        except:
-            playlistdata={}
-        playlistdata[name]=musicplaylist.returnplaylist()
-        f.truncate(0)
-        json.dump(playlistdata, f, ensure_ascii=False, indent=4)
-    print("Successfully Saved")
+def saveplaylist(name):
+    """Saves the current playlist to a JSON file."""
+    path = config.get_playlist_folder()
+    if not os.path.exists(path):
+        os.makedirs(path, exist_ok=True)
+    filepath = os.path.join(path, f'{name}.json')
+    playlist_data = musicplaylist.returnplaylist()
+    with open(filepath, 'w', encoding='utf-8') as f:
+        json.dump(playlist_data, f, ensure_ascii=False, indent=4)
+    print(f"Playlist '{name}' successfully saved to {filepath}")
 
-def loadplaylist(path,name):
+def loadplaylist(name):
+    """Loads a playlist from a JSON file."""
+    path = config.get_playlist_folder()
+    filepath = os.path.join(path, f'{name}.json')
     try:
-        with open(path+'jaylist.json', 'r', encoding='utf-8') as f:
-            musicplaylist.queuedplaylist.extend(json.load(f)[name])
-        print(print("Successfully loaded"))
-        songavailable.set()
-    except:
-        print(colored("Cannot Find the jaylist.json file at "+path,'red'))
+        with open(filepath, 'r', encoding='utf-8') as f:
+            playlist_data = json.load(f)
+            musicplaylist.queuedplaylist.extend(playlist_data)
+            print(f"Successfully loaded playlist '{name}'")
+            songavailable.set()
+    except FileNotFoundError:
+        print(colored(f"Playlist '{name}' not found at {filepath}", 'red'))
+    except json.JSONDecodeError:
+        print(colored(f"Error decoding playlist file: {filepath}", 'red'))
 
 def startmusic():
+    """Downloads and plays the next song in the queue."""
     song=musicplaylist.returnsong()
-    try:
-        meta=musicplaylist.downloadsong(song,dir)
-    except:
-        print(colored("Error downloading "+song,'red'))
+    meta=musicplaylist.downloadsong(song,dir_path)
+    if meta:
+        musicplaylist.playsong(meta,dir_path)
     else:
-        musicplaylist.playsong(meta,dir)
+        print(colored(f"Could not download '{song}'. Skipping.", 'red'))
 
 def play():
+    """Main loop for music playback."""
     while True:
         try:
-            if musicplaylist.playobj.is_playing():
+            if musicplaylist.playobj and musicplaylist.playobj.is_playing():
                 musicplaylist.playobj.wait_done()
         except:
             pass
@@ -84,6 +94,7 @@ def play():
                 songavailable.wait()
 
 def queue():
+    """Handles user input for controlling the music player."""
     while True:
         request=input("")
         if request=="exit":
@@ -101,7 +112,7 @@ def queue():
                 print("Cannot Shuffle Empty Queue")
         
         elif request=="play":
-            musicplaylist.resumesong(dir)
+            musicplaylist.resumesong(dir_path)
             songavailable.set()
 
         elif request=="pause":
@@ -117,16 +128,25 @@ def queue():
             musicplaylist.removelastqueuedsong()
 
         elif request.startswith("repeat"):
-            mode = request.split()[1]  
-            musicplaylist.repeatsong(mode)
+            parts = request.split()
+            if len(parts) > 1:
+                mode = parts[1]
+                musicplaylist.repeatsong(mode)
 
         elif request.startswith("seek"):
-            value = request.split()[1]
-            try:
-                value = int(value)
-                musicplaylist.seeksong(value,dir)
-            except:
-                print("Error: Invalid seek value ",'red')
+            parts = request.split()
+            if len(parts) > 1:
+                value = parts[1]
+                try:
+                    value = int(value)
+                    musicplaylist.seeksong(value,dir_path)
+                except:
+                    print("Error: Invalid seek value ",'red')
+
+        elif request == "download":
+            song_to_download = musicplaylist.playedplaylist[-1]
+            download_dir = downloader.makedownload(permanent=True)
+            downloader.download(song_to_download, download_dir)
 
         elif request=="spotify":
             spotifyplaylistlink=input("Enter Playlist: ")
@@ -138,20 +158,18 @@ def queue():
 
         elif request=="save":
             playlistname=input("Enter Playlist Name: ")
-            playlistpath=input("Enter Path: ")
-            saveplaylist(playlistpath,playlistname) 
+            saveplaylist(playlistname)
 
         elif request=="load":
             playlistname=input("Enter Playlist Name: ")
-            playlistpath=input("Enter Path: ")
-            loadplaylist(playlistpath,playlistname) 
+            loadplaylist(playlistname)
         
         elif request=="commands":
             print("Type spotify to play music using spotify playlist")
             print("Type youtube to play music using youtube playlist")
             print("Use rm to remove the last queued song from the playlist.")
             print("Type shuffle to shuffle your queue.")
-            print("Use load to load a playlist and save to save your playlist.Include the trailing slash in path i.e. specify path as C:\\Users\\Lex\\Music\\ or /home/lex/Projects/jakym/.")
+            print("Use load to load a playlist and save to save your playlist.")
             print("Use play , pause, next, back to control the playback.")
             print("Use repeat all, repeat song and repeat offto control song repetition.")
             print("Use seek with an integer like 10 or -10 to control the current song.")
@@ -162,7 +180,9 @@ def queue():
             songavailable.set()
         
 
+# Thread for music playback
 playthread=threading.Thread(target=play,daemon=True)
+# Thread for handling user input
 queuethread=threading.Thread(target=queue)
 
 def main():
@@ -170,19 +190,18 @@ def main():
 
     f = Figlet(font='banner3-D')
     print(" ")
-    print(colored(f.renderText('JAKYM'),'cyan'))
-    print("\t\t\t\t\t\t- by Lex")
+    print(colored(f.renderText('YMP'),'cyan'))
+    print("\t\t\t\t\t\t- by pheinze")
 
-    parser = argparse.ArgumentParser(prog='jakym', description='Just Another Konsole Youtube-Music',epilog='Thank you for using Jakym! :)')
+    parser = argparse.ArgumentParser(prog='ymp', description='Your Music Player',epilog='Thank you for using YMP! :)')
     parser.version = '0.4.0'
     parser.add_argument("-s", action='store', metavar='link', help="Play a Spotify Playlist")
     parser.add_argument("-y", action='store', metavar='link', help="Play a Youtube Playlist")
     parser.add_argument("-p", action='store', nargs='+', metavar='song', help="Play multiple youtube links or a songs")
-    parser.add_argument("-l", action='store', nargs=2, metavar=('playlistpath','playlistname'), help="Play a jakym generated playlist")
+    parser.add_argument("-l", action='store', metavar='playlistname', help="Play a ymp generated playlist")
     parser.add_argument('-v', action='version')
     args = parser.parse_args()
 
-    queuethread.start()
     playthread.start()
 
     if args.s:
@@ -190,16 +209,20 @@ def main():
     if args.y:
         playyoutube(args.y)
     if args.l:
-        loadplaylist(args.l[0],args.l[1])
+        loadplaylist(args.l)
     if args.p:
         for songs in args.p:
             musicplaylist.addsong(songs)
         songavailable.set()
 
-    queuethread.join()
-    deinit()
-    downloader.removedownload(dir)
-
+    queuethread.start()
+    try:
+        queuethread.join()
+    except KeyboardInterrupt:
+        print("\nExiting...")
+        deinit()
+        downloader.removedownload(dir_obj)
+        sys.exit()
 
 if __name__ == "__main__":
     main()
