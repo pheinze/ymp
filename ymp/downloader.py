@@ -2,6 +2,7 @@ from yt_dlp import YoutubeDL
 from requests import get
 from bs4 import BeautifulSoup
 import re , json ,tempfile, os
+import ymp.config as config
 
 def spotifyparser(url):
     """
