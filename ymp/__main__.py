@@ -5,6 +5,9 @@ import ymp.config as config
 
 
 import threading, argparse, json, sys, os
+import subprocess
+from urllib import request
+from pkg_resources import parse_version
 
 from pyfiglet import Figlet
 from colorama import init,deinit
@@ -78,7 +81,7 @@ def play():
                 musicplaylist.playobj.wait_done()
         except:
             pass
-        
+
         if  musicplaylist.songpaused==True:
             wait()
 
@@ -86,7 +89,7 @@ def play():
             musicplaylist.shiftlastplayedsong()
             startmusic()
 
-        elif musicplaylist.queuedplaylist :    
+        elif musicplaylist.queuedplaylist :
             startmusic()
 
         else:
@@ -105,7 +108,7 @@ def queue():
             deinit()
             downloader.removedownload(dir)
             sys.exit()
-        
+
         elif request=="" or request==" ":
             pass
 
@@ -114,20 +117,20 @@ def queue():
                 musicplaylist.shuffleplaylist()
             else:
                 print("Cannot Shuffle Empty Queue")
-        
+
         elif request=="play":
             musicplaylist.resumesong(dir_path)
             songavailable.set()
 
         elif request=="pause":
             musicplaylist.pausesong()
-        
+
         elif request=="next":
             musicplaylist.nextsong()
 
         elif request=="back":
             musicplaylist.previoussong()
-        
+
         elif request=="rm":
             musicplaylist.removelastqueuedsong()
 
@@ -158,7 +161,7 @@ def queue():
 
         elif request=="youtube":
             ytplaylist=input("Enter Playlist: ")
-            playyoutube(ytplaylist)  
+            playyoutube(ytplaylist)
 
         elif request=="save":
             playlistname=input("Enter Playlist Name: ")
@@ -167,7 +170,7 @@ def queue():
         elif request=="load":
             playlistname=input("Enter Playlist Name: ")
             loadplaylist(playlistname)
-        
+
         elif request=="commands":
             print("Type spotify to play music using spotify playlist")
             print("Type youtube to play music using youtube playlist")
@@ -178,11 +181,47 @@ def queue():
             print("Use repeat all, repeat song and repeat offto control song repetition.")
             print("Use seek with an integer like 10 or -10 to control the current song.")
             print("To exit the command window and hence the application simply type exit.")
-                       
+
         else:
             musicplaylist.addsong(request)
             songavailable.set()
-        
+
+
+def check_for_updates():
+    """Checks for updates on PyPI and offers to upgrade."""
+    try:
+        from . import __version__
+        current_version = parse_version(__version__)
+    except (ImportError, AttributeError):
+        print(colored("Could not determine current version. Skipping update check.", "red"))
+        return
+
+    print("Checking for updates...")
+    try:
+        response = request.urlopen("https://pypi.org/pypi/ymp/json", timeout=5)
+        data = json.load(response)
+        latest_version = parse_version(data['info']['version'])
+
+        if latest_version > current_version:
+            print(colored(f"A new version ({latest_version}) is available!", "yellow"))
+            upgrade = input("Do you want to upgrade? (y/n): ").lower().strip()
+            if upgrade == 'y':
+                print("Upgrading with pipx...")
+                try:
+                    subprocess.run(["pipx", "upgrade", "ymp"], check=True)
+                    print(colored("Update successful! Please restart ymp.", "green"))
+                    sys.exit()
+                except subprocess.CalledProcessError as e:
+                    print(colored(f"Update failed: {e}", "red"))
+                except FileNotFoundError:
+                    print(colored("`pipx` command not found. Please upgrade manually.", "red"))
+            else:
+                print("Update skipped.")
+        else:
+            print(colored("You are using the latest version.", "green"))
+
+    except Exception as e:
+        print(colored(f"Could not check for updates: {e}", "red"))
 
 # Thread for music playback
 playthread=threading.Thread(target=play,daemon=True)
@@ -204,7 +243,12 @@ def main():
     parser.add_argument("-p", action='store', nargs='+', metavar='song', help="Play multiple youtube links or a songs")
     parser.add_argument("-l", action='store', metavar='playlistname', help="Play a ymp generated playlist")
     parser.add_argument('-v', action='version')
+    parser.add_argument('-u', '--update', action='store_true', help="Check for updates")
     args = parser.parse_args()
+
+    if args.update:
+        check_for_updates()
+        sys.exit()
 
     playthread.start()
 

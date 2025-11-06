@@ -5,18 +5,22 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="ymp",
-    version="0.5.0",
+    version="0.6.0",
     author="pheinze",
     author_email="pheinze82@gmail.com",
-    description="Your Music Player for the console.",
+    description="A command-line music player for YouTube.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/pheinze/ymp",
     classifiers=[
         "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
+    python_requires='>=3.9',
     install_requires=[
         'yt_dlp',
         'pyfiglet',
