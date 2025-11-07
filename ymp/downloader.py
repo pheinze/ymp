@@ -34,34 +34,20 @@ def spotifyparser(url):
 
     return tracklist
 
-def ytplaylistparser(url,beg):
-    """Parses a YouTube playlist URL to extract video URLs."""
-    options={
-    'playlist_items':f'{beg}-{beg+4}'
+def get_playlist_info(url):
+    """Extracts video info from a playlist URL without downloading."""
+    options = {
+        'extract_flat': 'in_playlist',
+        'quiet': True,
+        'no_warnings': True,
     }
-    print("Pinging Youtube")
-    meta = None
     with YoutubeDL(options) as ytdl:
         try:
             meta = ytdl.extract_info(url, download=False)
+            return meta.get('entries', [])
         except Exception as e:
-            print(f"Error fetching playlist info.")
-
-    tracklist=[]
-    if not meta or 'entries' not in meta:
-        return tracklist, -1
-
-    tracker=0
-    for song in meta.get('entries', []):
-        if song and 'webpage_url' in song:
-            tracklist.append(song['webpage_url'])
-            tracker=tracker+1
-
-    if tracker<5:
-        beg=-1
-    else:
-        beg=beg+tracker
-    return tracklist,beg
+            print(f"Error fetching playlist info: {e}")
+            return []
 
 def download(link,dir_path):
     """Downloads a song from YouTube using yt-dlp."""

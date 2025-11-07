@@ -1,6 +1,4 @@
 import warnings
-warnings.filterwarnings("ignore", category=UserWarning, module='pkg_resources')
-
 import ymp.downloader as downloader
 from ymp.playlistmanager import Playlist
 from ymp.player import wait
@@ -10,7 +8,6 @@ import ymp.config as config
 import threading, argparse, json, sys, os
 import subprocess
 from urllib import request
-from pkg_resources import parse_version
 
 from pyfiglet import Figlet
 from colorama import init,deinit
@@ -30,14 +27,17 @@ def playspotify(link):
     songavailable.set()
 
 def playyoutube(link):
-    """Parses a YouTube playlist or video and adds the songs to the queue."""
+    """Fetches info for a YouTube playlist/video and adds it to the queue."""
     if "list=" in link:
-        beg=1
-        while beg!=-1:
-            tempytplaylist,beg=downloader.ytplaylistparser(link,beg)
-            musicplaylist.queuedplaylist.extend(tempytplaylist)
+        print("Fetching playlist info...")
+        playlist_items = downloader.get_playlist_info(link)
+        if playlist_items:
+            musicplaylist.queuedplaylist.extend(playlist_items)
+            print(f"Added {len(playlist_items)} songs to the queue.")
             songavailable.set()
     else:
+        # It's a single video, add its URL as a string.
+        # The download function will handle fetching the metadata.
         musicplaylist.addsong(link)
         songavailable.set()
 
@@ -78,7 +78,7 @@ def startmusic():
 
 import time
 
-def play():
+def play(interactive=True):
     """Main loop for music playback."""
     while True:
         # Condition 1: A song has just finished playing
@@ -97,8 +97,11 @@ def play():
                 musicplaylist.loopqueue()
                 if musicplaylist.queuedplaylist:
                     startmusic()
-            # Case 1.4: Nothing to play, wait for a new song
+            # Case 1.4: Nothing to play
             else:
+                if not interactive:
+                    # Playlist finished, exit gracefully
+                    break
                 songavailable.clear()
                 songavailable.wait()
 
@@ -206,29 +209,54 @@ def queue():
             songavailable.set()
 
 
-def check_for_updates():
-    """Checks for updates on PyPI and offers to upgrade."""
-    try:
-        from . import __version__
-        current_version = parse_version(__version__)
-    except (ImportError, AttributeError):
-        print(colored("Could not determine current version. Skipping update check.", "red"))
-        return
+def get_local_commit_path():
+    """Gets the path to the file storing the local commit hash."""
+    return os.path.join(config.CONFIG_DIR, 'version.txt')
 
+def get_local_commit():
+    """Reads the locally stored git commit hash."""
+    path = get_local_commit_path()
+    if not os.path.exists(path):
+        return None
+    with open(path, 'r') as f:
+        return f.read().strip()
+
+def save_local_commit(commit_hash):
+    """Saves the git commit hash of the current version."""
+    path = get_local_commit_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'w') as f:
+        f.write(commit_hash)
+
+def check_for_updates():
+    """Checks for updates on GitHub and offers to upgrade."""
     print("Checking for updates...")
     try:
-        response = request.urlopen("https://pypi.org/pypi/ymp/json", timeout=5)
-        data = json.load(response)
-        latest_version = parse_version(data['info']['version'])
+        # Get the latest commit hash from the master branch on GitHub
+        url = "https://api.github.com/repos/pheinze/ymp/branches/master"
+        with request.urlopen(url, timeout=5) as response:
+            data = json.load(response)
+            latest_commit = data['commit']['sha']
 
-        if latest_version > current_version:
-            print(colored(f"A new version ({latest_version}) is available!", "yellow"))
+        local_commit = get_local_commit()
+
+        if not local_commit:
+            print(colored("Could not determine local version. Cannot check for updates.", "red"))
+            return
+
+        if latest_commit != local_commit:
+            print(colored("A new version is available!", "yellow"))
             upgrade = input("Do you want to upgrade? (y/n): ").lower().strip()
             if upgrade == 'y':
-                print("Upgrading with pipx...")
+                print("Upgrading from GitHub with pipx...")
                 try:
-                    subprocess.run(["pipx", "upgrade", "ymp"], check=True)
-                    print(colored("Update successful! Please restart ymp.", "green"))
+                    subprocess.run(
+                        ["pipx", "install", "--force", "git+https://github.com/pheinze/ymp.git"],
+                        check=True
+                    )
+                    # After a successful upgrade, save the new commit hash
+                    save_local_commit(latest_commit)
+                    print(colored("Update successful! Please restart ymp if it was already running.", "green"))
                     sys.exit()
                 except subprocess.CalledProcessError as e:
                     print(colored(f"Update failed: {e}", "red"))
@@ -242,11 +270,6 @@ def check_for_updates():
     except Exception as e:
         print(colored(f"Could not check for updates: {e}", "red"))
 
-# Thread for music playback
-playthread=threading.Thread(target=play,daemon=True)
-# Thread for handling user input
-queuethread=threading.Thread(target=queue)
-
 def main():
     init()
 
@@ -255,13 +278,15 @@ def main():
     print(colored(f.renderText('YMP'),'cyan'))
     print("\t\t\t\t\t\t- by pheinze")
 
+    from . import __version__
     parser = argparse.ArgumentParser(prog='ymp', description='Your Music Player',epilog='Thank you for using YMP! :)')
-    parser.version = '0.4.0'
+    parser.add_argument('-v', '--version', action='version', version=f'%(prog)s {__version__}')
     parser.add_argument("-s", action='store', metavar='link', help="Play a Spotify Playlist")
     parser.add_argument("-y", action='store', metavar='link', help="Play a Youtube Playlist")
     parser.add_argument("-p", action='store', nargs='+', metavar='song', help="Play multiple youtube links or a songs")
     parser.add_argument("-l", action='store', metavar='playlistname', help="Play a ymp generated playlist")
-    parser.add_argument('-v', action='version')
+    # This -v is redundant, version is already handled
+    # parser.add_argument('-v', action='version')
     parser.add_argument('-u', '--update', action='store_true', help="Check for updates")
     args = parser.parse_args()
 
@@ -269,6 +294,10 @@ def main():
         check_for_updates()
         sys.exit()
 
+    interactive_mode = not (args.s or args.y or args.l or args.p)
+
+    # Pass the mode to the play function
+    playthread=threading.Thread(target=play, args=(interactive_mode,), daemon=True)
     playthread.start()
 
     if args.s:
@@ -282,14 +311,26 @@ def main():
             musicplaylist.addsong(songs)
         songavailable.set()
 
-    queuethread.start()
-    try:
-        queuethread.join()
-    except KeyboardInterrupt:
-        print("\nExiting...")
-        deinit()
-        downloader.removedownload(dir_obj)
-        sys.exit()
+    if interactive_mode:
+        queuethread=threading.Thread(target=queue)
+        queuethread.start()
+        try:
+            queuethread.join()
+        except KeyboardInterrupt:
+            print("\nExiting...")
+            deinit()
+            downloader.removedownload(dir_obj)
+            sys.exit()
+    else:
+        # Non-interactive mode: wait for the playlist to finish
+        try:
+            playthread.join()
+        except KeyboardInterrupt:
+            print("\nExiting...")
+        finally:
+            deinit()
+            downloader.removedownload(dir_obj)
+            sys.exit(0)
 
 if __name__ == "__main__":
     main()
