@@ -37,13 +37,19 @@ class Playlist:
 
     def returnsong(self):
         """Returns the next song from the queue and adds it to the played list."""
-        song=self.queuedplaylist.pop(0)
-        self.playedplaylist.append(song)
-        return song
+        song_info = self.queuedplaylist.pop(0)
+        self.playedplaylist.append(song_info)
+
+        if isinstance(song_info, dict):
+            return song_info.get('url') or song_info.get('title')
+        return song_info # It's already a string
 
     def addsong(self,query):
         """Adds a song to the queue."""
-        self.queuedplaylist.append(query+" song")
+        # Check if it's just a search term
+        if not query.startswith("http"):
+            query += " song"
+        self.queuedplaylist.append(query)
 
     def downloadsong(self,song,dir_path):
         """Downloads a song."""
