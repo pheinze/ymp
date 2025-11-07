@@ -1,8 +1,8 @@
-import ymp.downloader as downloader
-import ymp.player as player
+from . import downloader
+from . import player
 import os
 import time
-
+from .tui import get_app
 
 import random
 from termcolor import colored
@@ -51,6 +51,10 @@ class Playlist:
             query += " song"
         self.queuedplaylist.append(query)
 
+        app = get_app()
+        if app:
+            app.post_message(app.PlaylistUpdated())
+
     def downloadsong(self,song,dir_path):
         """Downloads a song."""
         meta, filepath = downloader.download(song,dir_path)
@@ -61,6 +65,9 @@ class Playlist:
             """Shuffles the queued playlist."""
             random.shuffle(self.queuedplaylist)
             console.print("Queue Shuffled", style="bold green")
+            app = get_app()
+            if app:
+                app.post_message(app.PlaylistUpdated())
 
     def playsong(self,meta,dir_path):
         """Plays a song."""
@@ -86,7 +93,7 @@ class Playlist:
         self.playback_progress.stop()
         self.playback_progress.remove_task(self.playback_task)
 
-    def resumesong(self,dir_path):
+    def resumesong(self):
         """Resumes a paused song."""
         if self.songpaused==True:
             console.print(f"Resuming: {self.meta['title']}", style="yellow")
@@ -132,6 +139,9 @@ class Playlist:
         """Removes the last song from the queue."""
         try:
             self.queuedplaylist.pop()
+            app = get_app()
+            if app:
+                app.post_message(app.PlaylistUpdated())
         except:
             print("Empty queue")
 

@@ -1,11 +1,13 @@
 import configparser
 import os
 
-CONFIG_DIR = os.path.expanduser('~/.config/ymp')
-CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.ini')
+CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".config", "ymp")
+CONFIG_FILE = os.path.join(CONFIG_DIR, "config.ini")
+PLAYLIST_DIR = os.path.join(CONFIG_DIR, "playlists")
+DOWNLOAD_DIR = os.path.join(os.path.expanduser("~"), "Downloads", "ymp")
 
 def get_config():
-    """Reads the configuration file and returns a config object."""
+    """Reads the config file and returns the config object."""
     config = configparser.ConfigParser()
     if not os.path.exists(CONFIG_FILE):
         create_default_config()
@@ -13,22 +15,26 @@ def get_config():
     return config
 
 def create_default_config():
-    """Creates a default configuration file."""
+    """Creates the default config file."""
     config = configparser.ConfigParser()
-    config['Settings'] = {
-        'playlist_folder': os.path.expanduser('~/Music/ymp_playlists'),
-        'download_folder': os.path.expanduser('~/Music/ymp_downloads'),
+    config["Settings"] = {
+        "playlist_folder": PLAYLIST_DIR,
+        "download_folder": DOWNLOAD_DIR,
     }
     os.makedirs(CONFIG_DIR, exist_ok=True)
-    with open(CONFIG_FILE, 'w') as configfile:
-        config.write(configfile)
+    with open(CONFIG_FILE, "w") as f:
+        config.write(f)
 
 def get_playlist_folder():
     """Returns the playlist folder path from the config."""
     config = get_config()
-    return config['Settings']['playlist_folder']
+    path = config.get("Settings", "playlist_folder", fallback=PLAYLIST_DIR)
+    os.makedirs(path, exist_ok=True)
+    return path
 
 def get_download_folder():
     """Returns the download folder path from the config."""
     config = get_config()
-    return config['Settings']['download_folder']
+    path = config.get("Settings", "download_folder", fallback=DOWNLOAD_DIR)
+    os.makedirs(path, exist_ok=True)
+    return path
